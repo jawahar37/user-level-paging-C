@@ -1,5 +1,9 @@
 
-all : test
+all : parent test
+
+parent:
+	make -C ..
+
 test: ../my_vm.h
 	gcc test.c -L../ -lmy_vm -m32 -o test
 	gcc multi_test.c -L../ -lmy_vm -m32 -o mtest -lpthread
