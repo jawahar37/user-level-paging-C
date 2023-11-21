@@ -1,4 +1,15 @@
 #include "my_vm.h"
+#include <math.h>
+#include <string.h>
+
+pde_t* page_dir;
+char* physical_bitmap;
+char* virtual_bitmap;
+int physical_bitmap_size, virtual_bitmap_size;
+int offset, page_table_bits, page_dir_bits;
+
+int initial_call = 0;
+
 
 /*
 Function responsible for allocating and setting your physical memory 
@@ -7,8 +18,29 @@ void set_physical_mem() {
 
     //Allocate physical memory using mmap or malloc; this is the total size of
     //your memory you are simulating
+    page_dir = (pde_t *) malloc(MEMSIZE);
+    offset = log2(PGSIZE);
+    page_table_bits = offset-2;
+    page_dir_bits = 32 - page_table_bits - offset;
 
+    physical_bitmap_size = MEMSIZE/(PGSIZE*8) ;
+    physical_bitmap = (char *)malloc( physical_bitmap_size );
+    memset(physical_bitmap, 0, physical_bitmap_size );
+
+    virtual_bitmap_size = MAX_MEMSIZE/(PGSIZE*8);
+    virtual_bitmap = (char *)malloc( virtual_bitmap_size );
+    memset(virtual_bitmap, 0, virtual_bitmap_size);
     
+    // Setting the 0th Page Frame as for Page Directory
+    set_bit_at_index(virtual_bitmap, 0);
+    
+    // Print Statements
+    // set_bit_at_index(virtual_bitmap, 1);
+    // printf("\nvirtual bitmap %d",*(int *)virtual_bitmap);
+    // printf("\n[0] %d", virtual_bitmap[0]);
+    // printf("\n[1] %d", virtual_bitmap[1]);
+    // printf("\n[2] %d", virtual_bitmap[2]);
+
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
 
@@ -118,6 +150,23 @@ void *t_malloc(unsigned int num_bytes) {
      * HINT: If the physical memory is not yet initialized, then allocate and initialize.
      */
 
+    if(initial_call == 0)
+   {
+    initial_call = 1;
+    puts("Initial Call");
+    set_physical_mem();
+
+   }
+   else{
+    puts("Subsequent Calls");
+    puts("Freeing Memory...");
+    free(page_dir);
+    puts("Freeing Physical Bitmap...");
+    free(physical_bitmap);
+    puts("Freeing Virtual Bitmap...");
+    free(virtual_bitmap);
+   }
+
    /* 
     * HINT: If the page directory is not initialized, then initialize the
     * page directory. Next, using get_next_avail(), check if there are free pages. If
@@ -204,6 +253,28 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
             put_value((void *)address_c, (void *)&c, sizeof(int));
         }
     }
+}
+
+static void set_bit_at_index(char *bitmap, int index)
+{
+    //Implement your code here	
+    unsigned int bitmask = 1 << (index % 8);
+    bitmap[index / 8] |= bitmask;
+    return;
+}
+
+static int get_bit_at_index(char *bitmap, int index)
+{
+    //Get to the location in the character bitmap array
+    //Implement your code here
+    return (bitmap[index / 8] >> (index % 8)) & 1;
+}
+
+static unsigned int get_top_bits(unsigned int value,  int num_bits)
+{
+	//Implement your code here
+    return value >> (32-num_bits);
+	
 }
 
 
