@@ -334,7 +334,7 @@ void text_color(int attr, int fg, int bg)
 }
 
 void reset_color() {
-    text_color(RESET, WHITE, BLACK);
+    printf("\033[0m");
 }
 
 const char *bit_rep[16] = {
