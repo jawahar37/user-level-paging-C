@@ -1,8 +1,34 @@
 #include "my_vm.h"
+
 #include <math.h>
 #include <string.h>
 // #include <stdlib.h>
 // #include <stdio.h>
+
+// Display code
+enum debug_levels {PUBLISH, LOG, DEBUG};
+int debug_level = DEBUG;
+
+#define RESET		0
+#define BRIGHT 		1
+#define DIM 		2
+#define UNDERLINE 	3
+#define BLINK		4
+#define REVERSE		7
+#define HIDDEN		8
+
+#define BLACK 		0
+#define RED 		1
+#define GREEN		2
+#define YELLOW		3
+#define BLUE		4
+#define MAGENTA		5
+#define CYAN		6
+#define	WHITE		7
+
+void textcolor(int attr, int fg, int bg);
+void print_bitmap(char* name, char* bitmap, int num_bytes);
+//
 
 pde_t* page_dir;
 char* physical_bitmap;
@@ -45,10 +71,8 @@ void set_physical_mem() {
     // set_bit_at_index(virtual_bitmap, 6);
     // set_bit_at_index(virtual_bitmap, 7);
 
-    puts("virtual_bitmap[0]");
-    printBinary(physical_bitmap[0]); // 00000001
-    puts("virtual_bitmap[1]");
-    printBinary(physical_bitmap[1]);
+
+    print_bitmap("Virtual bitmap", virtual_bitmap, 2);
 
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
@@ -285,34 +309,52 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     }
 }
 
-static void set_bit_at_index(char *bitmap, int index)
-{
-    //Implement your code here	
+static void set_bit_at_index(char *bitmap, int index) {
     unsigned int bitmask = 1 << (index % 8);
     bitmap[index / 8] |= bitmask;
     return;
 }
 
-static int get_bit_at_index(char *bitmap, int index)
-{
-    //Get to the location in the character bitmap array
-    //Implement your code here
+static int get_bit_at_index(char *bitmap, int index) {
     return (bitmap[index / 8] >> (index % 8)) & 1;
 }
 
-static unsigned int get_top_bits(unsigned int value,  int num_bits)
-{
-	//Implement your code here
+static unsigned int get_top_bits(unsigned int value,  int num_bits) {
     return value >> (32-num_bits);
-	
 }
 
-void printBinary(char c) {
-    for (int i = 7; i >= 0; i--) {
-        putchar((c & (1 << i)) ? '1' : '0');
+
+// Display implementations
+void text_color(int attr, int fg, int bg)
+{	char command[13];
+	sprintf(command, "%c[%d;%d;%dm", 0x1B, attr, fg + 30, bg + 40);
+	printf("%s", command);
+}
+
+void reset_color() {
+    text_color(RESET, WHITE, BLACK);
+}
+
+const char *bit_rep[16] = {
+    [ 0] = "0000", [ 1] = "0001", [ 2] = "0010", [ 3] = "0011",
+    [ 4] = "0100", [ 5] = "0101", [ 6] = "0110", [ 7] = "0111",
+    [ 8] = "1000", [ 9] = "1001", [10] = "1010", [11] = "1011",
+    [12] = "1100", [13] = "1101", [14] = "1110", [15] = "1111",
+};
+
+void print_byte(char byte)
+{
+    printf("%s %s", bit_rep[byte >> 4], bit_rep[byte & 0x0F]);
+}
+
+
+void print_bitmap(char* name, char* bitmap, int num_bytes) {
+    printf("\t%s: ", name);
+    for(int i = 0; i < num_bytes; i++) {
+        text_color(RESET, BLACK, YELLOW);
+        print_byte(bitmap[i]);
+        reset_color();
+        printf("  ");
     }
-    putchar('\n');
+    printf("\n");
 }
-
-
-
