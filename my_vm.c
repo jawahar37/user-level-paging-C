@@ -63,16 +63,18 @@ void set_physical_mem() {
     set_bit_at_index(physical_bitmap, 0);
     
     // Print Statements
-    // set_bit_at_index(virtual_bitmap, 1);
-    // set_bit_at_index(virtual_bitmap, 2);
-    // set_bit_at_index(virtual_bitmap, 3);
+    set_bit_at_index(virtual_bitmap, 1);
+    set_bit_at_index(virtual_bitmap, 2);
+    set_bit_at_index(virtual_bitmap, 3);
     // set_bit_at_index(virtual_bitmap, 4);
-    // set_bit_at_index(virtual_bitmap, 5);
-    // set_bit_at_index(virtual_bitmap, 6);
+    set_bit_at_index(virtual_bitmap, 5);
+    set_bit_at_index(virtual_bitmap, 6);
     // set_bit_at_index(virtual_bitmap, 7);
+    set_bit_at_index(virtual_bitmap, 8);
 
 
     print_bitmap("Virtual bitmap", virtual_bitmap, 2);
+    print_bitmap("Physical bitmap", physical_bitmap, 2);
 
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
@@ -342,15 +344,26 @@ const char *bit_rep[16] = {
     [12] = "1100", [13] = "1101", [14] = "1110", [15] = "1111",
 };
 
+#define BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE_TO_BINARY(byte)  \
+  ((byte) & 0x80 ? '1' : '0'), \
+  ((byte) & 0x40 ? '1' : '0'), \
+  ((byte) & 0x20 ? '1' : '0'), \
+  ((byte) & 0x10 ? '1' : '0'), \
+  ((byte) & 0x08 ? '1' : '0'), \
+  ((byte) & 0x04 ? '1' : '0'), \
+  ((byte) & 0x02 ? '1' : '0'), \
+  ((byte) & 0x01 ? '1' : '0') 
+
 void print_byte(char byte)
 {
-    printf("%s %s", bit_rep[byte >> 4], bit_rep[byte & 0x0F]);
+    printf(BINARY_PATTERN, BYTE_TO_BINARY(byte));
 }
 
 
 void print_bitmap(char* name, char* bitmap, int num_bytes) {
     printf("\t%s: ", name);
-    for(int i = 0; i < num_bytes; i++) {
+    for(int i = num_bytes-1; i >= 0; i--) {
         text_color(RESET, BLACK, YELLOW);
         print_byte(bitmap[i]);
         reset_color();
