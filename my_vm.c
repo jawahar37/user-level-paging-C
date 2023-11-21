@@ -1,6 +1,8 @@
 #include "my_vm.h"
 #include <math.h>
 #include <string.h>
+// #include <stdlib.h>
+// #include <stdio.h>
 
 pde_t* page_dir;
 char* physical_bitmap;
@@ -32,14 +34,21 @@ void set_physical_mem() {
     memset(virtual_bitmap, 0, virtual_bitmap_size);
     
     // Setting the 0th Page Frame as for Page Directory
-    set_bit_at_index(virtual_bitmap, 0);
+    set_bit_at_index(physical_bitmap, 0);
     
     // Print Statements
     // set_bit_at_index(virtual_bitmap, 1);
-    // printf("\nvirtual bitmap %d",*(int *)virtual_bitmap);
-    // printf("\n[0] %d", virtual_bitmap[0]);
-    // printf("\n[1] %d", virtual_bitmap[1]);
-    // printf("\n[2] %d", virtual_bitmap[2]);
+    // set_bit_at_index(virtual_bitmap, 2);
+    // set_bit_at_index(virtual_bitmap, 3);
+    // set_bit_at_index(virtual_bitmap, 4);
+    // set_bit_at_index(virtual_bitmap, 5);
+    // set_bit_at_index(virtual_bitmap, 6);
+    // set_bit_at_index(virtual_bitmap, 7);
+
+    puts("virtual_bitmap[0]");
+    printBinary(physical_bitmap[0]); // 00000001
+    puts("virtual_bitmap[1]");
+    printBinary(physical_bitmap[1]);
 
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
@@ -136,7 +145,29 @@ page_map(pde_t *pgdir, void *va, void *pa)
 /*Function that gets the next available page
 */
 void *get_next_avail(int num_pages) {
- 
+    int counter = 0;
+    int first_index = 0;
+    //Starting Virtual Address from 1
+    for(int i=1;i<virtual_bitmap_size;i++)
+    {
+        // Checking for start of contiguous memory allocation       
+        if(counter == 0){
+            first_index = i;
+        }
+
+        if(get_bit_at_index(virtual_bitmap , i)==0){
+            counter++;
+        }
+        else{
+            counter=0;
+        }
+        
+        if(counter==num_pages)
+        {
+            return (void *)(first_index<<offset); 
+        }
+    }
+    return NULL;
     //Use virtual address bitmap to find the next free page
 }
 
@@ -155,17 +186,16 @@ void *t_malloc(unsigned int num_bytes) {
     initial_call = 1;
     puts("Initial Call");
     set_physical_mem();
+   }
+    // puts("Subsequent Calls");
+    // puts("Freeing Memory...");
+    // free(page_dir);
+    // puts("Freeing Physical Bitmap...");
+    // free(physical_bitmap);
+    // puts("Freeing Virtual Bitmap...");
+    // free(virtual_bitmap);
 
-   }
-   else{
-    puts("Subsequent Calls");
-    puts("Freeing Memory...");
-    free(page_dir);
-    puts("Freeing Physical Bitmap...");
-    free(physical_bitmap);
-    puts("Freeing Virtual Bitmap...");
-    free(virtual_bitmap);
-   }
+
 
    /* 
     * HINT: If the page directory is not initialized, then initialize the
@@ -275,6 +305,13 @@ static unsigned int get_top_bits(unsigned int value,  int num_bits)
 	//Implement your code here
     return value >> (32-num_bits);
 	
+}
+
+void printBinary(char c) {
+    for (int i = 7; i >= 0; i--) {
+        putchar((c & (1 << i)) ? '1' : '0');
+    }
+    putchar('\n');
 }
 
 
