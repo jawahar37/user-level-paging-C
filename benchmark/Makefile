@@ -1,5 +1,5 @@
 
-all : parent test
+all : parent clean test
 
 parent:
 	make -C ..
