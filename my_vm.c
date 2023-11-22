@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 
 // Display code
 enum debug_levels {PUBLISH, LOG, DEBUG};
@@ -14,9 +15,17 @@ pde_t* page_dir;
 char* physical_bitmap;
 char* virtual_bitmap;
 int physical_bitmap_size, virtual_bitmap_size;
-int offset_bits, page_table_bits, page_dir_bits;
+int offset_bits, page_table_bits, page_dir_bits, tlb_hash_bits;
+
+double tlb_misses;
+double tlb_lookups;
 
 int initial_call = 0;
+
+tlb_entry *TLB;
+
+pthread_mutex_t lock; 
+
 
 
 /*
@@ -31,6 +40,8 @@ void set_physical_mem() {
     offset_bits = log2(PGSIZE);
     page_table_bits = offset_bits-2;
     page_dir_bits = 32 - page_table_bits - offset_bits;
+
+    tlb_hash_bits = log2(TLB_ENTRIES);
 
     physical_bitmap_size = MEMSIZE/(PGSIZE*8) ;
     physical_bitmap = (char *)malloc( physical_bitmap_size );
@@ -61,6 +72,12 @@ void set_physical_mem() {
     print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
     print_bitmap("Physical bitmap ", physical_bitmap, 2);
 
+    // init TLB
+    TLB = (tlb_entry*) malloc(TLB_ENTRIES * sizeof(tlb_entry));
+    memset(TLB, 0, TLB_ENTRIES * sizeof(tlb_entry));
+    tlb_misses = 0;
+    tlb_lookups = 0;
+
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
 
@@ -71,13 +88,25 @@ void set_physical_mem() {
  * Part 2: Add a virtual to physical page translation to the TLB.
  * Feel free to extend the function arguments or return type.
  */
-int
-add_TLB(void *va, void *pa)
+void
+add_TLB(void *va, pte_t pa)
 {
 
     /*Part 2 HINT: Add a virtual to physical page translation to the TLB */
+    // find slot to place TLB entry.
+    // empty the slot if an entry exists already
+    puts("Adding to TLB");
+    // print_bitmap("Virtual Address", va,  2);
+    printf("Physical Frame : %lu\n",pa);
+    
+    pde_t hash_bitmask = ((1<<tlb_hash_bits)-1)<<offset_bits;
+    pde_t hash_value = ((pte_t)(va) & hash_bitmask);
 
-    return -1;
+    pte_t virtual_value = ((pte_t)va)>>(offset_bits);
+
+    TLB[hash_value].virtual_tag = virtual_value;
+    TLB[hash_value].physical_frame = pa;
+    puts("\n------------------------------------ END OF ADD TLB");
 }
 
 
@@ -86,14 +115,28 @@ add_TLB(void *va, void *pa)
  * Returns the physical page address.
  * Feel free to extend this function and change the return type.
  */
-pte_t *
+pte_t 
 check_TLB(void *va) {
-
+    /*This function should return a pte_t pointer*/
     /* Part 2: TLB lookup code here */
 
+    tlb_lookups++;
+    pte_t hash_bitmask = ((1<<tlb_hash_bits)-1)<<offset_bits;
+    pte_t hash_value = ((pte_t)(va) & hash_bitmask);
 
-
-   /*This function should return a pte_t pointer*/
+    pte_t virtual_value = ((pte_t)va)>>(offset_bits);
+    
+    puts("Before if in check_TLB");
+    if (TLB[hash_value].virtual_tag == virtual_value) {
+        puts("Incrementing Lookup");
+        return TLB[hash_value].physical_frame;
+    }
+    else {
+        puts("Incrementing Lookup and Misses");
+        tlb_misses++;
+        return 0;
+    }
+    puts("\n------------------------------------ END OF CHECK TLB");
 }
 
 
@@ -108,7 +151,7 @@ print_TLB_missrate()
 
     /*Part 2 Code here to calculate and print the TLB miss rate*/
 
-
+    miss_rate = tlb_misses/tlb_lookups;
 
 
     fprintf(stderr, "TLB miss rate %lf \n", miss_rate);
@@ -128,6 +171,14 @@ pte_t translate(pde_t *pgdir, void *va) {
     * Part 2 HINT: Check the TLB before performing the translation. If
     * translation exists, then you can return physical address from the TLB.
     */
+    // TODO TLB
+    // puts("Before CHECK TLB");
+    // pte_t cached_translation = check_TLB(va);
+    // if(cached_translation != 0)
+    // {
+    //     return cached_translation;
+    // }
+    // puts("After Check TLB");
 
     pde_t virtual_address_index = ((pde_t)va)>>offset_bits;
     if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
@@ -159,6 +210,11 @@ pte_t translate(pde_t *pgdir, void *va) {
 
     pte_t middle_bitmask = ((1<<page_table_bits)-1)<<(offset_bits);
     pte_t page_table_index = ((pte_t)va & middle_bitmask)>>offset_bits;
+
+    // TLB TODO
+    // Adding to TLB
+    // add_TLB(va, page_table_pa[page_table_index]);
+
     // Returns Physical Frame
     return (page_table_pa[page_table_index]);
 }
@@ -327,14 +383,17 @@ void t_free(void *va, int size) {
     puts("Inside t_free");
     printf("num pages : %d\n",num_pages);
 
-    for(int i=0;i<num_pages;i++){
-        pte_t physical_frame = translate(page_dir,va+(i<<offset_bits));
-        if(physical_frame == 0)
-        {
-            puts("Translation Failed");
-            return;
-        }
-    }
+    // Previous Check For loop
+    // for(int i=0;i<num_pages;i++){
+    //     pte_t physical_frame = translate(page_dir,va+(i<<offset_bits));
+    //     if(physical_frame == 0)
+    //     {
+    //         puts("Translation Failed");
+    //         return;
+    //     }
+    // }
+
+
     for(int i=0;i<num_pages;i++){
         pte_t physical_frame = translate(page_dir,va+(i<<offset_bits));
         pde_t virtual_frame = ((pde_t)(va+(i<<offset_bits)))>>offset_bits;
@@ -346,7 +405,7 @@ void t_free(void *va, int size) {
         clear_bit_at_index(physical_bitmap, physical_frame);
         clear_bit_at_index(virtual_bitmap, virtual_frame);
         memset(page_dir + (physical_frame<<offset_bits), 0, PGSIZE);
-    }
+            }
     puts("After t_free");
     print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
     print_bitmap("Physical bitmap ", physical_bitmap, 2);
