@@ -3,13 +3,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 // Display code
 enum debug_levels {PUBLISH, LOG, DEBUG};
 int debug_level = DEBUG;
 //
 
-char* physical_memory;
+void* physical_memory;
 pde_t* page_dir;
 char* physical_bitmap;
 char* virtual_bitmap;
@@ -26,7 +27,7 @@ void set_physical_mem() {
 
     //Allocate physical memory using mmap or malloc; this is the total size of
     //your memory you are simulating
-    physical_memory = (char *) malloc(MEMSIZE);
+    physical_memory = (void *) malloc(MEMSIZE);
     page_dir = (pde_t *) physical_memory;
     offset_bits = log2(PGSIZE);
     page_table_bits = offset_bits-2;
@@ -299,9 +300,16 @@ int put_value(void *va, void *val, int size) {
      * than one page. Therefore, you may have to find multiple pages using translate()
      * function.
      */
+    
+    pte_t address;
+    for(int i = 0; i < size; i++) {
+        address = * translate(page_dir, va);
+        memcpy(address, (val + i), 1);
+    }
 
+    // TODO: Error checks for invalid addresses.
 
-    /*return -1 if put_value failed and 0 if put is successfull*/
+    /*return -1 if put_value failed and 0 if put is successful*/
 
 }
 
