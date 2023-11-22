@@ -1,20 +1,20 @@
 #include "my_vm.h"
-
 #include <math.h>
 #include <string.h>
-// #include <stdlib.h>
-// #include <stdio.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 // Display code
 enum debug_levels {PUBLISH, LOG, DEBUG};
 int debug_level = DEBUG;
 //
 
+char* physical_memory;
 pde_t* page_dir;
 char* physical_bitmap;
 char* virtual_bitmap;
 int physical_bitmap_size, virtual_bitmap_size;
-int offset, page_table_bits, page_dir_bits;
+int offset_bits, page_table_bits, page_dir_bits;
 
 int initial_call = 0;
 
@@ -26,10 +26,11 @@ void set_physical_mem() {
 
     //Allocate physical memory using mmap or malloc; this is the total size of
     //your memory you are simulating
-    page_dir = (pde_t *) malloc(MEMSIZE);
-    offset = log2(PGSIZE);
-    page_table_bits = offset-2;
-    page_dir_bits = 32 - page_table_bits - offset;
+    physical_memory = (char *) malloc(MEMSIZE);
+    page_dir = (pde_t *) physical_memory;
+    offset_bits = log2(PGSIZE);
+    page_table_bits = offset_bits-2;
+    page_dir_bits = 32 - page_table_bits - offset_bits;
 
     physical_bitmap_size = MEMSIZE/(PGSIZE*8) ;
     physical_bitmap = (char *)malloc( physical_bitmap_size );
@@ -50,13 +51,15 @@ void set_physical_mem() {
     // set_bit_at_index(virtual_bitmap, 5);
     // set_bit_at_index(virtual_bitmap, 6);
     // set_bit_at_index(virtual_bitmap, 7);
-    // set_bit_at_index(virtual_bitmap, 8);
 
+    // puts("virtual_bitmap[0]");
+    // printBinary(physical_bitmap[0]); // 00000001
+    // puts("virtual_bitmap[1]");
+    // printBinary(physical_bitmap[1]);
 
-    print_bitmap("Virtual bitmap", virtual_bitmap, 2);
-    print_bitmap("Physical bitmap", physical_bitmap, 2);
-
-    print_page_table_entries(page_dir, 8, 8);
+    puts("set_physical_mem");
+    print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+    print_bitmap("Physical bitmap ", physical_bitmap, 2);
 
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
@@ -125,7 +128,7 @@ pte_t *translate(pde_t *pgdir, void *va) {
     * Part 2 HINT: Check the TLB before performing the translation. If
     * translation exists, then you can return physical address from the TLB.
     */
-    // get_directory
+
 
     //If translation not successful, then return NULL
     return NULL; 
@@ -146,6 +149,26 @@ page_map(pde_t *pgdir, void *va, void *pa)
     and page table (2nd-level) indices. If no mapping exists, set the
     virtual to physical mapping */
 
+    pde_t higher_bitmask = ((1<<page_dir_bits)-1)<<(32-page_dir_bits);
+    pde_t page_dir_index = ((pde_t)va & higher_bitmask)>>offset_bits;
+
+    pde_t page_table_pa_frame;
+    if(pgdir[page_dir_index] == 0)
+    {
+        page_table_pa_frame = (pde_t)get_next_avail_physical();
+        pgdir[page_dir_index] = page_table_pa_frame;
+    }
+    else
+    {
+        page_table_pa_frame = pgdir[page_dir_index];
+    }
+    pde_t* page_table_pa = pgdir + (page_table_pa_frame<<offset_bits);
+
+    pte_t middle_bitmask = ((1<<page_table_bits)-1)<<(offset_bits);
+    pte_t page_table_index = ((pte_t)va & middle_bitmask)>>offset_bits;
+
+    page_table_pa[page_table_index] = (pte_t)pa;
+
     return -1;
 }
 
@@ -154,7 +177,7 @@ page_map(pde_t *pgdir, void *va, void *pa)
 */
 void *get_next_avail(int num_pages) {
     int counter = 0;
-    int first_index = 0;
+    pde_t first_index = 0;
     //Starting Virtual Address from 1
     for(int i=1;i<virtual_bitmap_size;i++)
     {
@@ -172,7 +195,11 @@ void *get_next_avail(int num_pages) {
         
         if(counter==num_pages)
         {
-            return (void *)(first_index<<offset); 
+            for (int j = first_index; j < num_pages+first_index; j++)
+            {
+                set_bit_at_index(virtual_bitmap, j);
+            }
+            return (void *)(first_index<<offset_bits); 
         }
     }
     return NULL;
@@ -202,8 +229,40 @@ void *t_malloc(unsigned int num_bytes) {
     // free(physical_bitmap);
     // puts("Freeing Virtual Bitmap...");
     // free(virtual_bitmap);
+    
+    int num_pages = num_bytes/PGSIZE ;
+    if(num_bytes%PGSIZE > 0) num_pages++;
+    
+    printf("Num_pages : %d\n",num_pages);
+    void* va = get_next_avail(num_pages);
+    
 
+    for (pde_t i = 0; i < num_pages; i++)
+    {
+        void* pa = get_next_avail_physical();
+        puts("Before page_map");
+        print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+        print_bitmap("Physical bitmap ", physical_bitmap, 2);
+        puts("");
+        if(pa == NULL)
+        {
+            puts("No Physical Memory Available !");
+            break;
+        }
+        page_map(page_dir,va+(i<<offset_bits),pa);
+        puts("After page_map");
+        print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+        print_bitmap("Physical bitmap ", physical_bitmap, 2);
+        puts("");
+    }
 
+    puts("Page Directory :");
+    print_page_table_entries(page_dir, 8, 8, 0);
+    puts("");
+    puts("Page Directory[0] Table :");
+    print_page_table_entries(page_dir + (page_dir[0]<<offset_bits), 8, 8, 0);
+    puts("------------------------------------ END OF MALLOC");
+    
 
    /* 
     * HINT: If the page directory is not initialized, then initialize the
@@ -211,8 +270,8 @@ void *t_malloc(unsigned int num_bytes) {
     * free pages are available, set the bitmaps and map a new page. Note, you will 
     * have to mark which physical pages are used. 
     */
-
-    return NULL;
+    return va;
+    // return NULL;
 }
 
 /* Responsible for releasing one or more memory pages using virtual address (va)
@@ -293,20 +352,48 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     }
 }
 
-static void set_bit_at_index(char *bitmap, int index) {
+void *get_next_avail_physical() {
+    //Starting Virtual Address from 1
+    for(int i=1;i<physical_bitmap_size;i++)
+    {
+
+        if(get_bit_at_index(physical_bitmap , i)==0){
+            set_bit_at_index(physical_bitmap, i);
+            return (void *)(i);
+        }
+    }
+    return NULL;
+    //Use virtual address bitmap to find the next free page
+}
+
+static void set_bit_at_index(char *bitmap, int index)
+{
+    //Implement your code here	
     unsigned int bitmask = 1 << (index % 8);
     bitmap[index / 8] |= bitmask;
     return;
 }
 
-static int get_bit_at_index(char *bitmap, int index) {
+static int get_bit_at_index(char *bitmap, int index)
+{
+    //Get to the location in the character bitmap array
+    //Implement your code here
     return (bitmap[index / 8] >> (index % 8)) & 1;
 }
 
-static unsigned int get_top_bits(unsigned int value,  int num_bits) {
+static unsigned int get_top_bits(unsigned int value,  int num_bits)
+{
+	//Implement your code here
     return value >> (32-num_bits);
+	
 }
 
+void printBinary(char c) {
+    for (int i = 7; i >= 0; i--) {
+        putchar((c & (1 << i)) ? '1' : '0');
+    }
+    putchar('\n');
+}
 
 // Display implementations
 
@@ -320,8 +407,6 @@ static unsigned int get_top_bits(unsigned int value,  int num_bits) {
 #define CYAN		87
 #define LIME        82
 #define ORANGE      214
-
-
 
 void text_color(int fg) {
     // char command[13];
@@ -375,8 +460,8 @@ void print_bitmap(char* name, char* bitmap, int num_bytes) {
     printf("\n");
 }
 
-void print_page_table_entries(pte_t* page_table, int entries_per_row, int num_rows) {
-    int entry = 0;
+void print_page_table_entries(unsigned long* page_table, int entries_per_row, int num_rows, unsigned long display_offset) {
+    unsigned long entry = display_offset;
 
     for (int i = 0; i < num_rows; i++) {
         if(i%4 < 2)
@@ -386,20 +471,6 @@ void print_page_table_entries(pte_t* page_table, int entries_per_row, int num_ro
         
         for (int j = 0; j < entries_per_row; j++) {
             printf("%lu  ", page_table[entry++]);
-        }
-        printf("\n");
-    }
-
-    reset_color();
-}
-
-void print_page_directory_entries(pde_t* page_directory, int entries_per_row, int num_rows) {
-    int entry = 0;
-
-    text_color(CYAN);
-    for (int i = 0; i < num_rows; i++) {
-        for (int j = 0; j < entries_per_row; j++) {
-            printf("%lu  ", page_directory[entry++]);
         }
         printf("\n");
     }
