@@ -26,22 +26,18 @@ typedef unsigned long pde_t;
 #define TLB_ENTRIES 512
 
 //Structure to represents TLB
-struct tlb {
-    /*Assume your TLB is a direct mapped TLB with number of entries as TLB_ENTRIES
-    * Think about the size of each TLB entry that performs virtual to physical
-    * address translation.
-    */
-   int a;
+typedef struct tlb_entry_struct {
+    pte_t virtual_tag;
+    pte_t physical_frame;
+} tlb_entry;
 
-};
-// struct tlb tlb_store;
 
 
 void set_physical_mem();
 pte_t translate(pde_t *pgdir, void *va);
 int page_map(pde_t *pgdir, void *va, void* pa);
-bool check_in_tlb(void *va);
-void put_in_tlb(void *va, void *pa);
+pte_t check_TLB(void *va);
+void add_TLB(void *va, pte_t pa);
 void *t_malloc(unsigned int num_bytes);
 void t_free(void *va, int size);
 int put_value(void *va, void *val, int size);
