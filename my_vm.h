@@ -52,6 +52,10 @@ void print_TLB_missrate();
 static unsigned int get_top_bits(unsigned int value,  int num_bits);
 static void set_bit_at_index(char *bitmap, int index);
 static int get_bit_at_index(char *bitmap, int index);
-void printBinary(char c);
 
+void text_color(int fg);
+void text_color_bg(int fg, int bg);
+void print_bitmap(char* name, char* bitmap, int num_bytes);
+void printBinary(char c);
+void print_page_table_entries(pte_t* page_table_base, int entries_per_row, int num_rows);
 #endif

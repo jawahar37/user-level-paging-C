@@ -8,26 +8,6 @@
 // Display code
 enum debug_levels {PUBLISH, LOG, DEBUG};
 int debug_level = DEBUG;
-
-#define RESET		0
-#define BRIGHT 		1
-#define DIM 		2
-#define UNDERLINE 	3
-#define BLINK		4
-#define REVERSE		7
-#define HIDDEN		8
-
-#define BLACK 		0
-#define RED 		1
-#define GREEN		2
-#define YELLOW		3
-#define BLUE		4
-#define MAGENTA		5
-#define CYAN		6
-#define	WHITE		7
-
-void textcolor(int attr, int fg, int bg);
-void print_bitmap(char* name, char* bitmap, int num_bytes);
 //
 
 pde_t* page_dir;
@@ -63,18 +43,20 @@ void set_physical_mem() {
     set_bit_at_index(physical_bitmap, 0);
     
     // Print Statements
-    set_bit_at_index(virtual_bitmap, 1);
-    set_bit_at_index(virtual_bitmap, 2);
-    set_bit_at_index(virtual_bitmap, 3);
+    // set_bit_at_index(virtual_bitmap, 1);
+    // set_bit_at_index(virtual_bitmap, 2);
+    // set_bit_at_index(virtual_bitmap, 3);
     // set_bit_at_index(virtual_bitmap, 4);
-    set_bit_at_index(virtual_bitmap, 5);
-    set_bit_at_index(virtual_bitmap, 6);
+    // set_bit_at_index(virtual_bitmap, 5);
+    // set_bit_at_index(virtual_bitmap, 6);
     // set_bit_at_index(virtual_bitmap, 7);
-    set_bit_at_index(virtual_bitmap, 8);
+    // set_bit_at_index(virtual_bitmap, 8);
 
 
     print_bitmap("Virtual bitmap", virtual_bitmap, 2);
     print_bitmap("Physical bitmap", physical_bitmap, 2);
+
+    print_page_table_entries(page_dir, 8, 8);
 
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
@@ -143,7 +125,7 @@ pte_t *translate(pde_t *pgdir, void *va) {
     * Part 2 HINT: Check the TLB before performing the translation. If
     * translation exists, then you can return physical address from the TLB.
     */
-
+    // get_directory
 
     //If translation not successful, then return NULL
     return NULL; 
@@ -327,10 +309,29 @@ static unsigned int get_top_bits(unsigned int value,  int num_bits) {
 
 
 // Display implementations
-void text_color(int attr, int fg, int bg)
-{	char command[13];
-	sprintf(command, "%c[%d;%d;%dm", 0x1B, attr, fg + 30, bg + 40);
-	printf("%s", command);
+
+#define BLACK 		0
+#define RED 		1
+#define YELLOW		3
+#define BLUE		4
+#define MAGENTA		5
+#define	WHITE		7
+
+#define CYAN		87
+#define LIME        82
+#define ORANGE      214
+
+
+
+void text_color(int fg) {
+    // char command[13];
+	// sprintf(command, "%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
+	printf("%c[38;5;%dm", 0x1B, fg);
+}
+void text_color_bg(int fg, int bg) {
+    // char command[13];
+	// sprintf(command, "%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
+	printf("%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
 }
 
 void reset_color() {
@@ -363,11 +364,45 @@ void print_byte(char byte)
 
 void print_bitmap(char* name, char* bitmap, int num_bytes) {
     printf("\t%s: ", name);
+
+    text_color_bg(BLACK, YELLOW);
     for(int i = num_bytes-1; i >= 0; i--) {
-        text_color(RESET, BLACK, YELLOW);
         print_byte(bitmap[i]);
-        reset_color();
-        printf("  ");
+        if(i != 0)
+            printf("  ");
     }
+    reset_color();
     printf("\n");
+}
+
+void print_page_table_entries(pte_t* page_table, int entries_per_row, int num_rows) {
+    int entry = 0;
+
+    for (int i = 0; i < num_rows; i++) {
+        if(i%4 < 2)
+            text_color(CYAN);
+        else
+            text_color(ORANGE);
+        
+        for (int j = 0; j < entries_per_row; j++) {
+            printf("%lu  ", page_table[entry++]);
+        }
+        printf("\n");
+    }
+
+    reset_color();
+}
+
+void print_page_directory_entries(pde_t* page_directory, int entries_per_row, int num_rows) {
+    int entry = 0;
+
+    text_color(CYAN);
+    for (int i = 0; i < num_rows; i++) {
+        for (int j = 0; j < entries_per_row; j++) {
+            printf("%lu  ", page_directory[entry++]);
+        }
+        printf("\n");
+    }
+
+    reset_color();
 }
