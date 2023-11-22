@@ -68,9 +68,9 @@ void set_physical_mem() {
     // puts("virtual_bitmap[1]");
     // printBinary(physical_bitmap[1]);
 
-    puts("set_physical_mem");
-    print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
-    print_bitmap("Physical bitmap ", physical_bitmap, 2);
+    // puts("set_physical_mem");
+    // print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+    // print_bitmap("Physical bitmap ", physical_bitmap, 2);
 
     // init TLB
     TLB = (tlb_entry*) malloc(TLB_ENTRIES * sizeof(tlb_entry));
@@ -95,18 +95,21 @@ add_TLB(void *va, pte_t pa)
     /*Part 2 HINT: Add a virtual to physical page translation to the TLB */
     // find slot to place TLB entry.
     // empty the slot if an entry exists already
-    puts("Adding to TLB");
+    // puts("Adding to TLB");
     // print_bitmap("Virtual Address", va,  2);
-    printf("Physical Frame : %lu\n",pa);
+    // printf("Physical Frame : %lu\n",pa);
     
     pde_t hash_bitmask = ((1<<tlb_hash_bits)-1)<<offset_bits;
-    pde_t hash_value = ((pte_t)(va) & hash_bitmask);
+    pte_t hash_value = ((pte_t)(va) & hash_bitmask)>>offset_bits;
+    hash_value = hash_value % TLB_ENTRIES;
 
     pte_t virtual_value = ((pte_t)va)>>(offset_bits);
 
     TLB[hash_value].virtual_tag = virtual_value;
     TLB[hash_value].physical_frame = pa;
-    puts("\n------------------------------------ END OF ADD TLB");
+    tlb_lookups++;
+    tlb_misses++;
+    // puts("\n------------------------------------ END OF ADD TLB");
 }
 
 
@@ -121,22 +124,30 @@ check_TLB(void *va) {
     /* Part 2: TLB lookup code here */
 
     tlb_lookups++;
+    // print_bitmap("Virtual address  ", (char *)va,  sizeof(pte_t));
     pte_t hash_bitmask = ((1<<tlb_hash_bits)-1)<<offset_bits;
-    pte_t hash_value = ((pte_t)(va) & hash_bitmask);
+    // printf("hash_bitmask %x\n",(int)hash_bitmask);
+    pte_t hash_value = ((pte_t)(va) & hash_bitmask)>>offset_bits;
+    hash_value = hash_value % TLB_ENTRIES;
 
     pte_t virtual_value = ((pte_t)va)>>(offset_bits);
     
-    puts("Before if in check_TLB");
+    // puts("Before if in check_TLB");
+    // printf("va %x\n",(int)va);
+    // printf("hash_value : %lu->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n",hash_value);
+    // printf("TLB[hash_value].virtual_tag : %lu\n",TLB[hash_value].virtual_tag);
+    // printf("virtual_value : %lu\n",virtual_value);
     if (TLB[hash_value].virtual_tag == virtual_value) {
-        puts("Incrementing Lookup");
+        // puts("Incrementing Lookup");
+        // puts("\n------------------------------------ END OF CHECK TLB");
         return TLB[hash_value].physical_frame;
     }
     else {
-        puts("Incrementing Lookup and Misses");
+        // puts("Incrementing Lookup and Misses");
         tlb_misses++;
+        // puts("\n------------------------------------ END OF CHECK TLB");
         return 0;
     }
-    puts("\n------------------------------------ END OF CHECK TLB");
 }
 
 
@@ -153,8 +164,36 @@ print_TLB_missrate()
 
     miss_rate = tlb_misses/tlb_lookups;
 
+    printf("\nTLB MISSES  : %lf",tlb_misses);
+    printf("\nTLB LOOKUPS : %lf\n",tlb_lookups);
+
 
     fprintf(stderr, "TLB miss rate %lf \n", miss_rate);
+}
+
+void 
+remove_TLB(void *va) {
+    /*This function should return a pte_t pointer*/
+    /* Part 2: TLB lookup code here */
+
+    pte_t hash_bitmask = ((1<<tlb_hash_bits)-1)<<offset_bits;
+    pte_t hash_value = ((pte_t)(va) & hash_bitmask)>>offset_bits;
+    hash_value = hash_value % TLB_ENTRIES;
+
+    pte_t virtual_value = ((pte_t)va)>>(offset_bits);
+    
+    // puts("Before if in remove_TLB");
+    // printf("TLB[hash_value].virtual_tag : %lu\n",TLB[hash_value].virtual_tag);
+    // printf("virtual_value : %lu\n",virtual_value);
+    if (TLB[hash_value].virtual_tag == virtual_value) {
+        TLB[hash_value].virtual_tag = 0;
+        TLB[hash_value].physical_frame = 0;
+    }
+    else {
+        // puts("TLB already removed");
+        return;
+    }
+    // puts("\n------------------------------------ END OF REMOVE TLB");
 }
 
 
@@ -173,11 +212,11 @@ pte_t translate(pde_t *pgdir, void *va) {
     */
     // TODO TLB
     // puts("Before CHECK TLB");
-    // pte_t cached_translation = check_TLB(va);
-    // if(cached_translation != 0)
-    // {
-    //     return cached_translation;
-    // }
+    pte_t cached_translation = check_TLB(va);
+    if(cached_translation != 0)
+    {
+        return cached_translation;
+    }
     // puts("After Check TLB");
 
     pde_t virtual_address_index = ((pde_t)va)>>offset_bits;
@@ -213,7 +252,7 @@ pte_t translate(pde_t *pgdir, void *va) {
 
     // TLB TODO
     // Adding to TLB
-    // add_TLB(va, page_table_pa[page_table_index]);
+    add_TLB(va, page_table_pa[page_table_index]);
 
     // Returns Physical Frame
     return (page_table_pa[page_table_index]);
@@ -253,6 +292,8 @@ page_map(pde_t *pgdir, void *va, void *pa)
     pte_t page_table_index = ((pte_t)va & middle_bitmask)>>offset_bits;
 
     page_table_pa[page_table_index] = (pte_t)pa;
+
+    add_TLB(va, page_table_pa[page_table_index]);
 
     return -1;
 }
@@ -304,7 +345,7 @@ void *t_malloc(unsigned int num_bytes) {
     if(initial_call == 0)
    {
     initial_call = 1;
-    puts("Initial Call");
+    // puts("Initial Call");
     set_physical_mem();
    }
     // puts("Subsequent Calls");
@@ -318,35 +359,35 @@ void *t_malloc(unsigned int num_bytes) {
     int num_pages = num_bytes/PGSIZE ;
     if(num_bytes%PGSIZE > 0) num_pages++;
     
-    printf("Num_pages : %d\n",num_pages);
+    // printf("Num_pages : %d\n",num_pages);
     void* va = get_next_avail(num_pages);
     
 
     for (pde_t i = 0; i < num_pages; i++)
     {
         void* pa = get_next_avail_physical();
-        puts("Before page_map");
-        print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
-        print_bitmap("Physical bitmap ", physical_bitmap, 2);
-        puts("");
+        // puts("Before page_map");
+        // print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+        // print_bitmap("Physical bitmap ", physical_bitmap, 2);
+        // puts("");
         if(pa == NULL)
         {
             puts("No Physical Memory Available !");
             break;
         }
         page_map(page_dir,va+(i<<offset_bits),pa);
-        puts("After page_map");
-        print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
-        print_bitmap("Physical bitmap ", physical_bitmap, 2);
-        puts("");
+        // puts("After page_map");
+        // print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+        // print_bitmap("Physical bitmap ", physical_bitmap, 2);
+        // puts("");
     }
 
-    puts("Page Directory :");
-    print_page_table_entries(page_dir, 8, 8, 0);
-    puts("");
-    puts("Page Directory[0] Table :");
-    print_page_table_entries(page_dir + (page_dir[0]<<offset_bits), 8, 8, 0);
-    puts("------------------------------------ END OF MALLOC");
+    // puts("Page Directory :");
+    // print_page_table_entries(page_dir, 8, 8, 0);
+    // puts("");
+    // puts("Page Directory[0] Table :");
+    // print_page_table_entries(page_dir + (page_dir[0]<<offset_bits), 8, 8, 0);
+    // puts("------------------------------------ END OF MALLOC");
     
 
    /* 
@@ -380,10 +421,10 @@ void t_free(void *va, int size) {
     int num_pages = size/PGSIZE ;
     if(size%PGSIZE > 0) num_pages++;
 
-    puts("Inside t_free");
-    printf("num pages : %d\n",num_pages);
+    // puts("Inside t_free");
+    // printf("num pages : %d\n",num_pages);
 
-    // Previous Check For loop
+    // Previous Check For loop using translate
     // for(int i=0;i<num_pages;i++){
     //     pte_t physical_frame = translate(page_dir,va+(i<<offset_bits));
     //     if(physical_frame == 0)
@@ -393,28 +434,39 @@ void t_free(void *va, int size) {
     //     }
     // }
 
+    for(int i=0;i<num_pages;i++){
+        pde_t virtual_address_index = ((pde_t)(va+(i<<offset_bits)))>>offset_bits;
+        if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
+            //If translation not successful, then return NULL
+            printf("Invalid Virtual Address");
+            return ;
+        }
+    }
+
 
     for(int i=0;i<num_pages;i++){
         pte_t physical_frame = translate(page_dir,va+(i<<offset_bits));
         pde_t virtual_frame = ((pde_t)(va+(i<<offset_bits)))>>offset_bits;
 
-        printf("Physical Frame Number : %lu\n",physical_frame);
-        printf("Virtual Frame Number  : %lu\n",virtual_frame);
-        puts("");
+        // printf("Physical Frame Number : %lu\n",physical_frame);
+        // printf("Virtual Frame Number  : %lu\n",virtual_frame);
+        // puts("");
 
         clear_bit_at_index(physical_bitmap, physical_frame);
         clear_bit_at_index(virtual_bitmap, virtual_frame);
         memset(page_dir + (physical_frame<<offset_bits), 0, PGSIZE);
-            }
-    puts("After t_free");
-    print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
-    print_bitmap("Physical bitmap ", physical_bitmap, 2);
-    puts("Page Directory :");
-    print_page_table_entries(page_dir, 8, 8, 0);
-    puts("");
-    puts("Page Directory[0] Table :");
-    print_page_table_entries(page_dir + (page_dir[0]<<offset_bits), 8, 8, 0);
-    puts("\n------------------------------------ END OF FREE");
+
+        remove_TLB(va+(i<<offset_bits));
+        }
+    // puts("After t_free");
+    // print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+    // print_bitmap("Physical bitmap ", physical_bitmap, 2);
+    // puts("Page Directory :");
+    // print_page_table_entries(page_dir, 8, 8, 0);
+    // puts("");
+    // puts("Page Directory[0] Table :");
+    // print_page_table_entries(page_dir + (page_dir[0]<<offset_bits), 8, 8, 0);
+    // puts("\n------------------------------------ END OF FREE");
 
 }
 
@@ -438,12 +490,21 @@ int put_value(void *va, void *val, int size) {
         pde_t offset_bitmask = ((1<<offset_bits)-1);
         pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
         pde_t remaining_page = PGSIZE - offset_value;
-        address = translate(page_dir, va);
-        if(address == 0)
-        {
-            /*return -1 if put_value failed and 0 if put is successfull*/
+
+        //previous translate method
+        // address = translate(page_dir, va+va_slider);
+        
+        pde_t virtual_address_index = ((pde_t)(va+va_slider))>>offset_bits;
+        if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
+            //If translation not successful, then return NULL
+            printf("Invalid Virtual Address");
             return -1;
         }
+        // if(address == 0)
+        // {
+        //     /*return -1 if put_value failed and 0 if put is successfull*/
+        //     return -1;
+        // }
         if(remaining_size <= remaining_page){
             // printf("\nIf   - Remaining Size : %lu",remaining_size);
             remaining_size = 0;
@@ -462,7 +523,7 @@ int put_value(void *va, void *val, int size) {
         pde_t offset_bitmask = ((1<<offset_bits)-1);
         pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
         pde_t remaining_page = PGSIZE - offset_value;
-        address = translate(page_dir, va);
+        address = translate(page_dir, va+va_slider);
 
         if(remaining_size <= remaining_page){
             memcpy((page_dir+(address<<offset_bits) + offset_value ), (val + (size - remaining_size)), remaining_size);
@@ -496,13 +557,20 @@ void get_value(void *va, void *val, int size) {
         pde_t offset_bitmask = ((1<<offset_bits)-1);
         pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
         pde_t remaining_page = PGSIZE - offset_value;
-        address = translate(page_dir, va);
-        if(address == 0)
-        {
-            /*return -1 if put_value failed and 0 if put is successfull*/
-            puts("Failed !");
+        //previous translate method
+        // address = translate(page_dir, va+va_slider);
+        
+        pde_t virtual_address_index = ((pde_t)(va+va_slider))>>offset_bits;
+        if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
+            //If translation not successful, then return NULL
+            printf("Invalid Virtual Address");
             return ;
         }
+        // if(address == 0)
+        // {
+        //     /*return -1 if put_value failed and 0 if put is successfull*/
+        //     return -1;
+        // }
         if(remaining_size <= remaining_page){
             // printf("\nIf   - Remaining Size : %lu",remaining_size);
             remaining_size = 0;
@@ -521,7 +589,7 @@ void get_value(void *va, void *val, int size) {
         pde_t offset_bitmask = ((1<<offset_bits)-1);
         pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
         pde_t remaining_page = PGSIZE - offset_value;
-        address = translate(page_dir, va);
+        address = translate(page_dir, va+va_slider);
 
         if(remaining_size <= remaining_page){
             memcpy((val + (size - remaining_size)), (page_dir+(address<<offset_bits) + offset_value ), remaining_size);
