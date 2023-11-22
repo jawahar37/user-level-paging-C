@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 
 // Display code
 enum debug_levels {PUBLISH, LOG, DEBUG};
@@ -121,7 +120,7 @@ print_TLB_missrate()
 The function takes a virtual address and page directories starting address and
 performs translation to return the physical address
 */
-pte_t *translate(pde_t *pgdir, void *va) {
+pte_t translate(pde_t *pgdir, void *va) {
     /* Part 1 HINT: Get the Page directory index (1st level) Then get the
     * 2nd-level-page table index using the virtual address.  Using the page
     * directory index and page table index get the physical address.
@@ -130,9 +129,38 @@ pte_t *translate(pde_t *pgdir, void *va) {
     * translation exists, then you can return physical address from the TLB.
     */
 
+    pde_t virtual_address_index = ((pde_t)va)>>offset_bits;
+    if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
+        //If translation not successful, then return NULL
+        printf("Invalid Virtual Address");
+        return 0;
+    }
 
-    //If translation not successful, then return NULL
-    return NULL; 
+    pde_t higher_bitmask = ((1<<page_dir_bits)-1)<<(32-page_dir_bits);
+    pde_t page_dir_index = ((pde_t)va & higher_bitmask)>>(32-page_dir_bits);
+    
+    // if(pgdir[page_dir_index] == 0)
+    // {
+    //     //If translation not successful, then return NULL
+    //     puts("Invalid Virtual Address");
+    //     return NULL;
+    // }
+    
+    pte_t page_table_pa_frame = pgdir[page_dir_index];
+
+    // if(page_table_pa_frame==0)
+    // {
+    //     //If translation not successful, then return NULL
+    //     puts("Invalid Virtual Address");
+    //     return NULL;
+    // }
+
+    pde_t* page_table_pa = pgdir + (page_table_pa_frame<<offset_bits);
+
+    pte_t middle_bitmask = ((1<<page_table_bits)-1)<<(offset_bits);
+    pte_t page_table_index = ((pte_t)va & middle_bitmask)>>offset_bits;
+    // Returns Physical Frame
+    return (page_table_pa[page_table_index]);
 }
 
 
@@ -151,7 +179,7 @@ page_map(pde_t *pgdir, void *va, void *pa)
     virtual to physical mapping */
 
     pde_t higher_bitmask = ((1<<page_dir_bits)-1)<<(32-page_dir_bits);
-    pde_t page_dir_index = ((pde_t)va & higher_bitmask)>>offset_bits;
+    pde_t page_dir_index = ((pde_t)va & higher_bitmask)>>(32-page_dir_bits);
 
     pde_t page_table_pa_frame;
     if(pgdir[page_dir_index] == 0)
@@ -285,7 +313,50 @@ void t_free(void *va, int size) {
      *
      * Part 2: Also, remove the translation from the TLB
      */
-    
+    // pde_t higher_bitmask = ((1<<page_dir_bits)-1)<<(32-page_dir_bits);
+    pde_t virtual_address_index = ((pde_t)va)>>offset_bits;
+    if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
+        //If translation not successful, then return NULL
+        printf("Invalid Virtual Address");
+        return ;
+    }
+
+    int num_pages = size/PGSIZE ;
+    if(size%PGSIZE > 0) num_pages++;
+
+    puts("Inside t_free");
+    printf("num pages : %d\n",num_pages);
+
+    for(int i=0;i<num_pages;i++){
+        pte_t physical_frame = translate(page_dir,va+(i<<offset_bits));
+        if(physical_frame == 0)
+        {
+            puts("Translation Failed");
+            return;
+        }
+    }
+    for(int i=0;i<num_pages;i++){
+        pte_t physical_frame = translate(page_dir,va+(i<<offset_bits));
+        pde_t virtual_frame = ((pde_t)(va+(i<<offset_bits)))>>offset_bits;
+
+        printf("Physical Frame Number : %lu\n",physical_frame);
+        printf("Virtual Frame Number  : %lu\n",virtual_frame);
+        puts("");
+
+        clear_bit_at_index(physical_bitmap, physical_frame);
+        clear_bit_at_index(virtual_bitmap, virtual_frame);
+        memset(page_dir + (physical_frame<<offset_bits), 0, PGSIZE);
+    }
+    puts("After t_free");
+    print_bitmap("Virtual bitmap  ", virtual_bitmap,  2);
+    print_bitmap("Physical bitmap ", physical_bitmap, 2);
+    puts("Page Directory :");
+    print_page_table_entries(page_dir, 8, 8, 0);
+    puts("");
+    puts("Page Directory[0] Table :");
+    print_page_table_entries(page_dir + (page_dir[0]<<offset_bits), 8, 8, 0);
+    puts("\n------------------------------------ END OF FREE");
+
 }
 
 
@@ -300,16 +371,18 @@ int put_value(void *va, void *val, int size) {
      * than one page. Therefore, you may have to find multiple pages using translate()
      * function.
      */
-    
     pte_t address;
-    for(int i = 0; i < size; i++) {
-        address = * translate(page_dir, va);
-        memcpy(address, (val + i), 1);
+
+    int num_pages = size/PGSIZE ;
+    if(size%PGSIZE > 0) num_pages++;
+
+    for(int i = 0; i < num_pages; i++) {
+        address = translate(page_dir, va+(i<<offset_bits));
+        // memcpy(address, (val), 1);
     }
 
-    // TODO: Error checks for invalid addresses.
 
-    /*return -1 if put_value failed and 0 if put is successful*/
+    /*return -1 if put_value failed and 0 if put is successfull*/
 
 }
 
@@ -320,6 +393,15 @@ void get_value(void *va, void *val, int size) {
     /* HINT: put the values pointed to by "va" inside the physical memory at given
     * "val" address. Assume you can access "val" directly by derefencing them.
     */
+    pte_t address;
+
+    int num_pages = size/PGSIZE ;
+    if(size%PGSIZE > 0) num_pages++;
+
+    for(int i = 0; i < num_pages; i++) {
+        address = translate(page_dir, va+(i<<offset_bits));
+        // memcpy(address, (val), 1);
+    }
 
 
 }
@@ -376,8 +458,10 @@ void *get_next_avail_physical() {
 
 static void set_bit_at_index(char *bitmap, int index)
 {
+    //Implement your code here	
     unsigned int bitmask = 1 << (index % 8);
     bitmap[index / 8] |= bitmask;
+    return;
 }
 
 static void clear_bit_at_index(char *bitmap, int index)
@@ -388,11 +472,14 @@ static void clear_bit_at_index(char *bitmap, int index)
 
 static int get_bit_at_index(char *bitmap, int index)
 {
+    //Get to the location in the character bitmap array
+    //Implement your code here
     return (bitmap[index / 8] >> (index % 8)) & 1;
 }
 
 static unsigned int get_top_bits(unsigned int value,  int num_bits)
 {
+	//Implement your code here
     return value >> (32-num_bits);
 	
 }
@@ -418,9 +505,13 @@ void printBinary(char c) {
 #define ORANGE      214
 
 void text_color(int fg) {
+    // char command[13];
+	// sprintf(command, "%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
 	printf("%c[38;5;%dm", 0x1B, fg);
 }
 void text_color_bg(int fg, int bg) {
+    // char command[13];
+	// sprintf(command, "%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
 	printf("%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
 }
 
@@ -428,6 +519,12 @@ void reset_color() {
     printf("\033[0m");
 }
 
+const char *bit_rep[16] = {
+    [ 0] = "0000", [ 1] = "0001", [ 2] = "0010", [ 3] = "0011",
+    [ 4] = "0100", [ 5] = "0101", [ 6] = "0110", [ 7] = "0111",
+    [ 8] = "1000", [ 9] = "1001", [10] = "1010", [11] = "1011",
+    [12] = "1100", [13] = "1101", [14] = "1110", [15] = "1111",
+};
 
 #define BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
@@ -459,8 +556,8 @@ void print_bitmap(char* name, char* bitmap, int num_bytes) {
     printf("\n");
 }
 
-void print_page_table_entries(unsigned long* page_table, int entries_per_row, int num_rows, unsigned long entry_offset) {
-    unsigned long entry = entry_offset;
+void print_page_table_entries(unsigned long* page_table, int entries_per_row, int num_rows, unsigned long display_offset) {
+    unsigned long entry = display_offset;
 
     for (int i = 0; i < num_rows; i++) {
         if(i%4 < 2)
