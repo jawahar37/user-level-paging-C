@@ -373,17 +373,53 @@ int put_value(void *va, void *val, int size) {
      */
     pte_t address;
 
-    int num_pages = size/PGSIZE ;
-    if(size%PGSIZE > 0) num_pages++;
-
-    for(int i = 0; i < num_pages; i++) {
-        address = translate(page_dir, va+(i<<offset_bits));
-        // memcpy(address, (val), 1);
+    pte_t remaining_size = size;
+    pte_t va_slider = 0;
+    while(remaining_size>0){
+        pde_t offset_bitmask = ((1<<offset_bits)-1);
+        pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
+        pde_t remaining_page = PGSIZE - offset_value;
+        address = translate(page_dir, va);
+        if(address == 0)
+        {
+            /*return -1 if put_value failed and 0 if put is successfull*/
+            return -1;
+        }
+        if(remaining_size <= remaining_page){
+            // printf("\nIf   - Remaining Size : %lu",remaining_size);
+            remaining_size = 0;
+            va_slider += remaining_size; 
+        }
+        else{
+            // printf("\nElse - Remaining Size : %lu",remaining_size);
+            remaining_size -= remaining_page;
+            va_slider += remaining_page;
+        }
     }
 
+    remaining_size = size;
+    va_slider = 0;
+    while(remaining_size>0){
+        pde_t offset_bitmask = ((1<<offset_bits)-1);
+        pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
+        pde_t remaining_page = PGSIZE - offset_value;
+        address = translate(page_dir, va);
 
+        if(remaining_size <= remaining_page){
+            memcpy((page_dir+(address<<offset_bits) + offset_value ), (val + (size - remaining_size)), remaining_size);
+            remaining_size = 0;
+            va_slider += remaining_size; 
+        }
+        else{
+            memcpy((page_dir+(address<<offset_bits) + offset_value ), (val + (size - remaining_size)), remaining_page);
+            remaining_size -= remaining_page;
+            va_slider += remaining_page;
+        }
+    }
+
+    // puts("\n------------------------------------ END OF put_value");
     /*return -1 if put_value failed and 0 if put is successfull*/
-
+    return 0;
 }
 
 
@@ -395,15 +431,54 @@ void get_value(void *va, void *val, int size) {
     */
     pte_t address;
 
-    int num_pages = size/PGSIZE ;
-    if(size%PGSIZE > 0) num_pages++;
-
-    for(int i = 0; i < num_pages; i++) {
-        address = translate(page_dir, va+(i<<offset_bits));
-        // memcpy(address, (val), 1);
+    pte_t remaining_size = size;
+    pte_t va_slider = 0;
+    while(remaining_size>0){
+        pde_t offset_bitmask = ((1<<offset_bits)-1);
+        pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
+        pde_t remaining_page = PGSIZE - offset_value;
+        address = translate(page_dir, va);
+        if(address == 0)
+        {
+            /*return -1 if put_value failed and 0 if put is successfull*/
+            puts("Failed !");
+            return ;
+        }
+        if(remaining_size <= remaining_page){
+            // printf("\nIf   - Remaining Size : %lu",remaining_size);
+            remaining_size = 0;
+            va_slider += remaining_size; 
+        }
+        else{
+            // printf("\nElse - Remaining Size : %lu",remaining_size);
+            remaining_size -= remaining_page;
+            va_slider += remaining_page;
+        }
     }
 
+    remaining_size = size;
+    va_slider = 0;
+    while(remaining_size>0){
+        pde_t offset_bitmask = ((1<<offset_bits)-1);
+        pde_t offset_value = ((pte_t)(va+va_slider) & offset_bitmask);
+        pde_t remaining_page = PGSIZE - offset_value;
+        address = translate(page_dir, va);
 
+        if(remaining_size <= remaining_page){
+            memcpy((val + (size - remaining_size)), (page_dir+(address<<offset_bits) + offset_value ), remaining_size);
+            remaining_size = 0;
+            va_slider += remaining_size; 
+        }
+        else{
+            memcpy((val + (size - remaining_size)), (page_dir+(address<<offset_bits) + offset_value ), remaining_page);
+            remaining_size -= remaining_page;
+            va_slider += remaining_page;
+        }
+    }
+
+    // puts("\n------------------------------------ END OF get_value");
+    /*return -1 if put_value failed and 0 if put is successfull*/
+    return;
 }
 
 
