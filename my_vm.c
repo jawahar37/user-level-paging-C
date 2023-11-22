@@ -368,22 +368,23 @@ void *get_next_avail_physical() {
 
 static void set_bit_at_index(char *bitmap, int index)
 {
-    //Implement your code here	
     unsigned int bitmask = 1 << (index % 8);
     bitmap[index / 8] |= bitmask;
-    return;
+}
+
+static void clear_bit_at_index(char *bitmap, int index)
+{
+    unsigned int bitmask = 1 << (index % 8);
+    bitmap[index / 8] &= ~bitmask;
 }
 
 static int get_bit_at_index(char *bitmap, int index)
 {
-    //Get to the location in the character bitmap array
-    //Implement your code here
     return (bitmap[index / 8] >> (index % 8)) & 1;
 }
 
 static unsigned int get_top_bits(unsigned int value,  int num_bits)
 {
-	//Implement your code here
     return value >> (32-num_bits);
 	
 }
@@ -409,13 +410,9 @@ void printBinary(char c) {
 #define ORANGE      214
 
 void text_color(int fg) {
-    // char command[13];
-	// sprintf(command, "%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
 	printf("%c[38;5;%dm", 0x1B, fg);
 }
 void text_color_bg(int fg, int bg) {
-    // char command[13];
-	// sprintf(command, "%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
 	printf("%c[38;5;%d;48;5;%dm", 0x1B, fg, bg);
 }
 
@@ -423,12 +420,6 @@ void reset_color() {
     printf("\033[0m");
 }
 
-const char *bit_rep[16] = {
-    [ 0] = "0000", [ 1] = "0001", [ 2] = "0010", [ 3] = "0011",
-    [ 4] = "0100", [ 5] = "0101", [ 6] = "0110", [ 7] = "0111",
-    [ 8] = "1000", [ 9] = "1001", [10] = "1010", [11] = "1011",
-    [12] = "1100", [13] = "1101", [14] = "1110", [15] = "1111",
-};
 
 #define BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
@@ -460,8 +451,8 @@ void print_bitmap(char* name, char* bitmap, int num_bytes) {
     printf("\n");
 }
 
-void print_page_table_entries(unsigned long* page_table, int entries_per_row, int num_rows, unsigned long display_offset) {
-    unsigned long entry = display_offset;
+void print_page_table_entries(unsigned long* page_table, int entries_per_row, int num_rows, unsigned long entry_offset) {
+    unsigned long entry = entry_offset;
 
     for (int i = 0; i < num_rows; i++) {
         if(i%4 < 2)
