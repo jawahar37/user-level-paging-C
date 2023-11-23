@@ -11,6 +11,7 @@ int matrix_size = 5;
 
 void *alloc_mem(void *id_arg) {
     int id = *((int *)id_arg);
+    printf("Allocate memory for thread.\n");
     pointers[id] = t_malloc(alloc_size);
     return NULL;
 }

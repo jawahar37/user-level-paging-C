@@ -24,8 +24,8 @@ int initial_call = 0;
 
 tlb_entry *TLB;
 
-pthread_mutex_t lock; 
-
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    // pthread_mutex_init(&lock, NULL);
 
 
 /*
@@ -77,7 +77,7 @@ void set_physical_mem() {
     memset(TLB, 0, TLB_ENTRIES * sizeof(tlb_entry));
     tlb_misses = 0;
     tlb_lookups = 0;
-
+    
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
 
@@ -109,7 +109,7 @@ add_TLB(void *va, pte_t pa)
     TLB[hash_value].physical_frame = pa;
     tlb_lookups++;
     tlb_misses++;
-    // puts("\n------------------------------------ END OF ADD TLB");
+        // puts("\n------------------------------------ END OF ADD TLB");
 }
 
 
@@ -302,7 +302,7 @@ page_map(pde_t *pgdir, void *va, void *pa)
 /*Function that gets the next available page
 */
 void *get_next_avail(int num_pages) {
-    int counter = 0;
+        int counter = 0;
     pde_t first_index = 0;
     //Starting Virtual Address from 1
     for(int i=1;i<virtual_bitmap_size;i++)
@@ -328,7 +328,7 @@ void *get_next_avail(int num_pages) {
             return (void *)(first_index<<offset_bits); 
         }
     }
-    return NULL;
+        return NULL;
     //Use virtual address bitmap to find the next free page
 }
 
@@ -337,18 +337,18 @@ void *get_next_avail(int num_pages) {
 and used by the benchmark
 */
 void *t_malloc(unsigned int num_bytes) {
-
+    pthread_mutex_lock(&lock);
     /* 
      * HINT: If the physical memory is not yet initialized, then allocate and initialize.
      */
-
+    
     if(initial_call == 0)
-   {
-    initial_call = 1;
-    // puts("Initial Call");
-    set_physical_mem();
-   }
-    // puts("Subsequent Calls");
+    {
+        printf("\t- Initialize all.\n");
+        initial_call = 1;
+        set_physical_mem();
+    }
+        // puts("Subsequent Calls");
     // puts("Freeing Memory...");
     // free(page_dir);
     // puts("Freeing Physical Bitmap...");
@@ -396,6 +396,7 @@ void *t_malloc(unsigned int num_bytes) {
     * free pages are available, set the bitmaps and map a new page. Note, you will 
     * have to mark which physical pages are used. 
     */
+    pthread_mutex_unlock(&lock);
     return va;
     // return NULL;
 }
@@ -403,7 +404,7 @@ void *t_malloc(unsigned int num_bytes) {
 /* Responsible for releasing one or more memory pages using virtual address (va)
 */
 void t_free(void *va, int size) {
-
+    pthread_mutex_lock(&lock);
     /* Part 1: Free the page table entries starting from this virtual address
      * (va). Also mark the pages free in the bitmap. Perform free only if the 
      * memory from "va" to va+size is valid.
@@ -415,6 +416,7 @@ void t_free(void *va, int size) {
     if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
         //If translation not successful, then return NULL
         printf("Invalid Virtual Address");
+        pthread_mutex_unlock(&lock);
         return ;
     }
 
@@ -439,6 +441,7 @@ void t_free(void *va, int size) {
         if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
             //If translation not successful, then return NULL
             printf("Invalid Virtual Address");
+            pthread_mutex_unlock(&lock);
             return ;
         }
     }
@@ -467,7 +470,7 @@ void t_free(void *va, int size) {
     // puts("Page Directory[0] Table :");
     // print_page_table_entries(page_dir + (page_dir[0]<<offset_bits), 8, 8, 0);
     // puts("\n------------------------------------ END OF FREE");
-
+    pthread_mutex_unlock(&lock);
 }
 
 
@@ -482,6 +485,7 @@ int put_value(void *va, void *val, int size) {
      * than one page. Therefore, you may have to find multiple pages using translate()
      * function.
      */
+    pthread_mutex_lock(&lock);
     pte_t address;
 
     pte_t remaining_size = size;
@@ -498,6 +502,7 @@ int put_value(void *va, void *val, int size) {
         if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
             //If translation not successful, then return NULL
             printf("Invalid Virtual Address");
+            pthread_mutex_unlock(&lock);
             return -1;
         }
         // if(address == 0)
@@ -539,6 +544,7 @@ int put_value(void *va, void *val, int size) {
 
     // puts("\n------------------------------------ END OF put_value");
     /*return -1 if put_value failed and 0 if put is successfull*/
+    pthread_mutex_unlock(&lock);
     return 0;
 }
 
@@ -549,6 +555,7 @@ void get_value(void *va, void *val, int size) {
     /* HINT: put the values pointed to by "va" inside the physical memory at given
     * "val" address. Assume you can access "val" directly by derefencing them.
     */
+    pthread_mutex_lock(&lock);
     pte_t address;
 
     pte_t remaining_size = size;
@@ -564,6 +571,7 @@ void get_value(void *va, void *val, int size) {
         if(get_bit_at_index(virtual_bitmap , virtual_address_index)==0){
             //If translation not successful, then return NULL
             printf("Invalid Virtual Address");
+            pthread_mutex_unlock(&lock);
             return ;
         }
         // if(address == 0)
@@ -605,6 +613,7 @@ void get_value(void *va, void *val, int size) {
 
     // puts("\n------------------------------------ END OF get_value");
     /*return -1 if put_value failed and 0 if put is successfull*/
+    pthread_mutex_unlock(&lock);
     return;
 }
 
@@ -623,6 +632,7 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
      * getting the values from two matrices, you will perform multiplication and 
      * store the result to the "answer array"
      */
+    
     int x, y, val_size = sizeof(int);
     int i, j, k;
     for (i = 0; i < size; i++) {
@@ -646,7 +656,7 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
 
 void *get_next_avail_physical() {
     //Starting Virtual Address from 1
-    for(int i=1;i<physical_bitmap_size;i++)
+        for(int i=1;i<physical_bitmap_size;i++)
     {
 
         if(get_bit_at_index(physical_bitmap , i)==0){
@@ -654,7 +664,7 @@ void *get_next_avail_physical() {
             return (void *)(i);
         }
     }
-    return NULL;
+        return NULL;
     //Use virtual address bitmap to find the next free page
 }
 
