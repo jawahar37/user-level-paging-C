@@ -26,22 +26,18 @@ typedef unsigned long pde_t;
 #define TLB_ENTRIES 512
 
 //Structure to represents TLB
-struct tlb {
-    /*Assume your TLB is a direct mapped TLB with number of entries as TLB_ENTRIES
-    * Think about the size of each TLB entry that performs virtual to physical
-    * address translation.
-    */
-   int a;
+typedef struct tlb_entry_struct {
+    pte_t virtual_tag;
+    pte_t physical_frame;
+} tlb_entry;
 
-};
-// struct tlb tlb_store;
 
 
 void set_physical_mem();
-pte_t* translate(pde_t *pgdir, void *va);
+pte_t translate(pde_t *pgdir, void *va);
 int page_map(pde_t *pgdir, void *va, void* pa);
-bool check_in_tlb(void *va);
-void put_in_tlb(void *va, void *pa);
+pte_t check_TLB(void *va);
+void add_TLB(void *va, pte_t pa);
 void *t_malloc(unsigned int num_bytes);
 void t_free(void *va, int size);
 int put_value(void *va, void *val, int size);
@@ -51,6 +47,15 @@ void print_TLB_missrate();
 
 static unsigned int get_top_bits(unsigned int value,  int num_bits);
 static void set_bit_at_index(char *bitmap, int index);
+static void clear_bit_at_index(char *bitmap, int index);
 static int get_bit_at_index(char *bitmap, int index);
+void printBinary(char c);
+void *get_next_avail_physical();
+
+void text_color(int fg);
+void text_color_bg(int fg, int bg);
+void print_bitmap(char* name, char* bitmap, int num_bytes);
+void printBinary(char c);
+void print_page_table_entries(unsigned long* page_table_base, int entries_per_row, int num_rows, unsigned long display_offset);
 
 #endif
